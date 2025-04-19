@@ -58,9 +58,19 @@ export class Contract1Service {
     // Check if the contract exists
     await this.ensureContractExists(id);
 
+    // Transform DTO to Prisma update input
+    const updateData = {
+      escrowAmount: updateContract1Dto.escrowAmount,
+      status: updateContract1Dto.status,
+    };
+
     return this.prisma.contract.update({
       where: { id },
-      data: updateContract1Dto,
+      data: updateData,
+      include: {
+        serviceOrder: true,
+        users: true,
+      },
     });
   }
 

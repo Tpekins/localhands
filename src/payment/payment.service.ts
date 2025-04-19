@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaymentStatus } from '@prisma/client';
+import { PaymentStatus, Prisma, Payment, Contract } from '@prisma/client';
 import { FapshiService } from './services/fapshi.service';
 import {
   DirectPaymentDto,
@@ -20,11 +20,12 @@ export class PaymentService {
     private fapshiService: FapshiService,
   ) {}
 
-  async create(createPaymentDto: CreatePaymentDto) {
+  async create(createPaymentDto: CreatePaymentDto): Promise<Payment & { contract: Contract }> {
     return this.prisma.payment.create({
       data: {
         ...createPaymentDto,
-        status: 'PENDING',
+        contractId: Number(createPaymentDto.contractId),
+        status: PaymentStatus.PENDING,
       },
       include: {
         contract: true,
@@ -32,30 +33,28 @@ export class PaymentService {
     });
   }
 
-  async findAll(filters?: { contractId?: string; status?: string }) {
-    const where: any = {};
+  async findAll(filters?: {
+    contractId?: number;
+    status?: PaymentStatus;
+  }): Promise<(Payment & { contract: Contract })[]> {
+    const where: Prisma.PaymentWhereInput = {};
 
     if (filters?.contractId) {
-      where.contractId = filters.contractId;
+      where.contractId = {
+        equals: Number(filters.contractId), // Convert contractId to a number
+      };
     }
 
     if (filters?.status) {
-      where.status = filters.status;
+      where.status = {
+        equals: filters.status,
+      };
     }
 
     return this.prisma.payment.findMany({
       where,
       include: {
-        contract: {
-          include: {
-            proposal: {
-              include: {
-                freelancer: true,
-                job: true,
-              },
-            },
-          },
-        },
+        contract: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -63,19 +62,12 @@ export class PaymentService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: number): Promise<Payment & { contract: Contract }> {
     const payment = await this.prisma.payment.findUnique({
       where: { id },
       include: {
         contract: {
-          include: {
-            proposal: {
-              include: {
-                freelancer: true,
-                job: true,
-              },
-            },
-          },
+          include: {},
         },
       },
     });
@@ -87,7 +79,24 @@ export class PaymentService {
     return payment;
   }
 
-  async update(id: string, updatePaymentDto: UpdatePaymentDto) {
+  async findByTransactionId(transactionId: string): Promise<Payment & { contract: Contract }> {
+    const payment = await this.prisma.payment.findFirst({
+      where: { transactionId },
+      include: {
+        contract: true,
+      },
+    });
+
+    if (!payment) {
+      throw new NotFoundException(`Payment with transaction ID ${transactionId} not found`);
+    }
+
+    return payment;
+  }
+  async update(
+    id: number,
+    updatePaymentDto: Partial<Prisma.PaymentUncheckedUpdateInput>,
+  ): Promise<Payment & { contract: Contract }> {
     // First check if the payment exists
     await this.findOne(id);
 
@@ -100,7 +109,7 @@ export class PaymentService {
     });
   }
 
-  async remove(id: string) {
+  async remove(id: number): Promise<Payment> {
     // First check if the payment exists
     await this.findOne(id);
 
@@ -109,11 +118,11 @@ export class PaymentService {
     });
   }
 
-  async findByContract(contractId: string) {
+  async findByContract(contractId: number) {
     return this.findAll({ contractId });
   }
 
-  async updatePaymentStatus(id: string, status: PaymentStatus) {
+  async updatePaymentStatus(id: number, status: PaymentStatus): Promise<Payment & { contract: Contract }> {
     // First check if the payment exists
     await this.findOne(id);
 
@@ -198,31 +207,27 @@ export class PaymentService {
    * @returns Created payment with Fapshi payment link
    */
   async createWithFapshiPaymentLink(createPaymentDto: CreatePaymentDto, paymentLinkDto: GeneratePaymentLinkDto) {
-    // First create the payment in our database
     const payment = await this.create(createPaymentDto);
 
     try {
-      // Generate a payment link with Fapshi
       const paymentLinkResponse = await this.generatePaymentLink({
         ...paymentLinkDto,
         amount: createPaymentDto.amount,
-        externalId: payment.id, // Use our payment ID as external ID for reference
+        externalId: payment.id, 
       });
 
-      // Update our payment with the Fapshi transaction ID
       await this.update(payment.id, {
+        // Removed toString()
         transactionId: paymentLinkResponse.transId,
       });
 
-      // Return the payment with the Fapshi payment link
       return {
         payment,
         fapshiPaymentLink: paymentLinkResponse.link,
         fapshiTransId: paymentLinkResponse.transId,
       };
     } catch (error) {
-      // If Fapshi payment link generation fails, delete the payment
-      await this.remove(payment.id);
+      await this.remove(payment.id); // Removed toString()
       throw error;
     }
   }
@@ -234,30 +239,26 @@ export class PaymentService {
    * @returns Created payment with Fapshi transaction ID
    */
   async createWithFapshiDirectPayment(createPaymentDto: CreatePaymentDto, directPaymentDto: DirectPaymentDto) {
-    // First create the payment in our database
     const payment = await this.create(createPaymentDto);
 
     try {
-      // Initiate a direct payment with Fapshi
       const directPaymentResponse = await this.initiateDirectPayment({
         ...directPaymentDto,
         amount: createPaymentDto.amount,
-        externalId: payment.id, // Use our payment ID as external ID for reference
+        externalId: payment.id, // Removed toString()
       });
 
-      // Update our payment with the Fapshi transaction ID
       await this.update(payment.id, {
+        // Removed toString()
         transactionId: directPaymentResponse.transId,
       });
 
-      // Return the payment with the Fapshi transaction ID
       return {
         payment,
         fapshiTransId: directPaymentResponse.transId,
       };
     } catch (error) {
-      // If Fapshi direct payment initiation fails, delete the payment
-      await this.remove(payment.id);
+      await this.remove(payment.id); // Removed toString()
       throw error;
     }
   }
@@ -269,23 +270,18 @@ export class PaymentService {
    * @param id Payment ID
    * @returns Updated payment
    */
-  async syncPaymentStatusWithFapshi(id: string) {
-    // Get the payment from our database
+  async syncPaymentStatusWithFapshi(id: number): Promise<Payment & { contract: Contract }> {
     const payment = await this.findOne(id);
 
-    if (!payment.transactionId) {
+    if (!payment?.transactionId) {
       throw new BadRequestException('Payment does not have a Fapshi transaction ID');
     }
 
-    // Get the payment status from Fapshi
     const fapshiStatus = await this.getPaymentStatus(payment.transactionId);
+    const mappedStatus = this.fapshiService.mapFapshiStatusToAppStatus(fapshiStatus.status) as PaymentStatus;
 
-    // Map Fapshi status to our payment status
-    const mappedStatus = this.fapshiService.mapFapshiStatusToAppStatus(fapshiStatus.status);
-
-    // Update our payment status if it's different
     if (payment.status !== mappedStatus) {
-      return this.updatePaymentStatus(id, mappedStatus as PaymentStatus);
+      return this.updatePaymentStatus(id, mappedStatus);
     }
 
     return payment;
