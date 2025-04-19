@@ -117,6 +117,7 @@ model Service {
   assets          ServiceAsset[]   // Unified relation for both images and areas
   providerModel   Provider?        @relation(fields: [providerModelId], references: [id])
   providerModelId Int?
+  views           Int              @default(0)  // Add this line
 }
 
 model ServiceOrder {

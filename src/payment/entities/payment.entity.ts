@@ -2,8 +2,8 @@ import { PaymentStatus, PaymentMethod } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
 export class Payment implements Prisma.PaymentUncheckedCreateInput {
-  id?: string;
-  contractId: string;
+  id?: number;
+  contractId: number;
   amount: number;
   paymentMethod: PaymentMethod;
   transactionId: string;

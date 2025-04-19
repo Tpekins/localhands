@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProfile1Dto } from './dto/create-profile1.dto';
 import { UpdateProfile1Dto } from './dto/update-profile1.dto';
+import { VerificationStatus } from '@prisma/client';
 
 @Injectable()
 export class Profile1Service {
@@ -27,7 +28,10 @@ export class Profile1Service {
         bankAccountNumber,
         nationalIdUrl,
         location,
-        verificationStatus: 'PENDING', // Default verification status
+        verificationStatus: VerificationStatus.PENDING, // Default verification status
+      },
+      include: {
+        user: true, // Include user details in response
       },
     });
   }
@@ -35,7 +39,7 @@ export class Profile1Service {
   async findAll() {
     return this.prisma.profile.findMany({
       include: {
-        user: true, // Include user details
+        user: true,
       },
     });
   }
@@ -44,7 +48,7 @@ export class Profile1Service {
     const profile = await this.prisma.profile.findUnique({
       where: { id },
       include: {
-        user: true, // Include user details
+        user: true,
       },
     });
     if (!profile) {
@@ -64,6 +68,9 @@ export class Profile1Service {
     return this.prisma.profile.update({
       where: { id },
       data: updateProfile1Dto,
+      include: {
+        user: true,
+      },
     });
   }
 

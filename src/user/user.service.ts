@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { CreateUserDto, UpdateUserDto } from './dto/create-user1.dto';
+import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
 
 @Injectable()
 export class UserService {
@@ -78,6 +78,16 @@ export class UserService {
     });
     if (!user) {
       throw new NotFoundException(`User with email ${email} not found`);
+    }
+    return user;
+  }
+
+  async findByPhoneNumber(phoneNumber: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { phoneNumber },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with phone number ${phoneNumber} not found`);
     }
     return user;
   }

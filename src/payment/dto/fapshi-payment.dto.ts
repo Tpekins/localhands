@@ -24,7 +24,7 @@ export class GeneratePaymentLinkDto {
   @IsString()
   @Length(1, 100, { message: 'External ID must be between 1 and 100 characters' })
   @Matches(/^[a-zA-Z0-9\-_]+$/, { message: 'External ID can only contain alphanumeric characters, hyphens, and underscores' })
-  externalId?: string;
+  externalId?: number;
 
   @IsOptional()
   @IsString()
@@ -134,7 +134,7 @@ export class DirectPaymentDto {
   @IsString()
   @Length(1, 100, { message: 'External ID must be between 1 and 100 characters' })
   @Matches(/^[a-zA-Z0-9\-_]+$/, { message: 'External ID can only contain alphanumeric characters, hyphens, and underscores' })
-  externalId?: string;
+  externalId?: number;
 
   @IsOptional()
   @IsString()
